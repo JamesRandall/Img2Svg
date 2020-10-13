@@ -4,7 +4,7 @@ Converts a bitmap image to pixelised SVG (with the option to use the F# Fable Re
 
 Weird right... may not be of much use to people but I wanted to convert some vector art into independent pixels that I could move around using JavaScript. Tested on limited use cases so far.
 
-If its useful to you great... comes with no promise of support or acceptance of PR or anything. I may or may not look at an issue. Take it or leave it.
+If its useful to you great. Comes with no promise of support or acceptance of PR or anything. I may or may not look at an issue. Take it or leave it.
 
 Compile the solution in Rider, VS Code, Visual Studio etc. and you'll get an exe dropped out called Img2Svg. Run it and it will give you the parameters:
 
