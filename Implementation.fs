@@ -25,7 +25,17 @@ module Formatting =
       Alpha: byte
     }
     member c.Rgba = sprintf "rgba(%d,%d,%d,%d)" c.Red c.Green c.Blue c.Alpha
-    
+    static member FromCommaDelimited (csvColors:string) =
+      let error = Error "Invalid colour format - must be r,g,b or r,g,b,a"
+      try
+        let components = csvColors.Split(',') |> Array.map(fun c -> c |> byte)
+        match components.Length with
+        | 3 -> Ok { Red = components.[0] ; Green = components.[1] ; Blue = components.[2] ; Alpha = 255uy }
+        | 4 -> Ok { Red = components.[0] ; Green = components.[1] ; Blue = components.[2] ; Alpha = components.[3] }
+        | _ -> error
+      with
+        _ -> error
+                 
   type IOutputFormatter =
     abstract member Header: string
     // x,y,color -> string
@@ -63,16 +73,16 @@ module Formatting =
         let outputWidth = f.Width * f.PixelSize
         let outputHeight = f.Height * f.PixelSize
         sprintf
-          "svg [SVGAttr.Width %d ; SVGAttr.Height %d ; SVGAttr.ViewBox=\"0 0 %d %d\"] ["
+          "svg [SVGAttr.Width %d ; SVGAttr.Height %d ; SVGAttr.ViewBox \"0 0 %d %d\"] [|"
           outputWidth
           outputHeight
           outputWidth
           outputHeight
       member f.Pixel ((x,y,color)) =
         sprintf
-          "  [rect SVGAttr.X=\"%d\" SVGAttr.Y=\"%d\" SVGAttr.Width=\"%d\" SVGAttr.Height=\"%d\" SVGAttr.Fill=\"%s\"][]"
+          "  rect [SVGAttr.X \"%d\" ; SVGAttr.Y \"%d\" ; SVGAttr.Width \"%d\" ; SVGAttr.Height \"%d\" ; SVGAttr.Fill \"%s\"][]"
           (x*f.PixelSize) (y*f.PixelSize) f.PixelSize f.PixelSize color.Rgba
-      member f.Footer = "]"
+      member f.Footer = "|]"
   
   let create format width height pixelSize =
     match format with
@@ -83,25 +93,33 @@ module Formatting =
       let fableReactFormatter:FableReactFormatter = { Width = width ; Height = height ; PixelSize = pixelSize  }
       fableReactFormatter :> IOutputFormatter
     
-let extractColors (image:Image<Rgba32>) =
+let extractColors optionalIgnoreColor (image:Image<Rgba32>) =
   seq { for y=0 to image.Height-1 do for x=0 to image.Width-1 do (x,y) }
   |> Seq.map(fun (x,y) ->
     let pixel = image.[x,y]
     let color:Formatting.Color = { Red = pixel.R ; Green = pixel.G ; Blue = pixel.B ; Alpha = pixel.A }
     x,y,color
   )
+  |> Seq.filter (fun (_,_,c) -> match optionalIgnoreColor with | Some ignoreColor -> ignoreColor <> c | None -> true)
  
-let convert inputFilename pixelSize outputFormat =
+let convert inputFilename pixelSize outputFormat optionalIgnoreCommaDelimitedColor =
   let imageResult = loadImage inputFilename
   match imageResult with
   | Ok image ->
     let formatter = Formatting.create outputFormat image.Width image.Height pixelSize
-    let result =
+    let ignoreColorResult =
+      match optionalIgnoreCommaDelimitedColor with
+      | Some cdc ->
+        Formatting.Color.FromCommaDelimited cdc |> Result.bind(fun c -> c |> Some |> Ok)
+      | None -> Ok None     
+    match ignoreColorResult with
+    | Error msg -> Error msg
+    | Ok ignoreColor ->        
       image
-      |> extractColors
+      |> extractColors (ignoreColor)
       |> Seq.fold (fun (builder:StringBuilder) xyColor ->
           builder.AppendLine(formatter.Pixel xyColor)
         ) (StringBuilder(formatter.Header))
       |> fun sb -> sb.AppendLine(formatter.Footer) |> ignore ; sb.ToString()
-    Ok result
+      |> Ok
   | Error message -> Error message

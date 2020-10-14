@@ -2,10 +2,12 @@
 open ImgToSvg
 
 type CliArguments =
-  | Input of string
-  | Output of string
+  | Input of path:string
+  | Output of path:string
   | FableReact
-  | PixelSize of int
+  | PixelSize of pixels:int
+  | IgnoreColor of rgba:string
+  
   
   interface IArgParserTemplate with
     member s.Usage =
@@ -14,6 +16,7 @@ type CliArguments =
       | Output _ -> "Output SVG file"
       | FableReact -> "Output using Fable React SVG"
       | PixelSize _ -> "The size of the rectangles used to represent pixels, defaults to 2"
+      | IgnoreColor _ -> "A comma delimited rgb / rgba list (e.g. 200,0,10 or 200,0,10,200) - this colour will not be translated into pixels"
 
 open Implementation
 
@@ -23,10 +26,11 @@ let main argv =
     let arguments = parser.Parse argv
     let pixelSize = arguments.GetResult(PixelSize, defaultValue = 2)
     let format = if arguments.Contains FableReact then FableReactSvg else Svg
+    let ignoreColor = arguments.TryGetResult(IgnoreColor)
     
     match arguments.TryGetResult Input, arguments.TryGetResult Output with
     | Some input, Some output ->
-      match convert input pixelSize format with
+      match convert input pixelSize format ignoreColor with
       | Ok content ->
         System.IO.File.WriteAllText (output,content)
         printf "Image converted"
